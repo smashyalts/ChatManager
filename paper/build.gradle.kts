@@ -1,8 +1,11 @@
 plugins {
+    alias(libs.plugins.modrinth)
+    alias(libs.plugins.hangar)
+
     id("paper-plugin")
 }
 
-group = "${rootProject.group}.paper"
+project.group = "${rootProject.group}.paper"
 
 base {
     archivesName.set("${rootProject.name}-${project.name}")
@@ -14,8 +17,6 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public/")
 
     maven("https://repo.essentialsx.net/releases/")
-
-    maven("https://jitpack.io/")
 }
 
 dependencies {
@@ -47,19 +48,7 @@ tasks {
         }
     }
 
-    assemble {
-        dependsOn(shadowJar)
-    }
-
-    reobfJar {
-        outputJar.set(file("$buildDir/libs/${rootProject.name}-${project.name}-${project.version}.jar"))
-    }
-
     shadowJar {
-        archiveBaseName.set("${rootProject.name}-${project.name}")
-        archiveClassifier.set("")
-        mergeServiceFiles()
-
         listOf(
             "org.bstats",
         ).forEach {
@@ -70,7 +59,7 @@ tasks {
     processResources {
         val props = mapOf(
                 "name" to rootProject.name,
-                "group" to project.group,
+                "group" to project.group.toString(),
                 "version" to rootProject.version,
                 "description" to rootProject.description,
                 "authors" to rootProject.properties["authors"],
@@ -80,6 +69,72 @@ tasks {
 
         filesMatching("plugin.yml") {
             expand(props)
+        }
+    }
+}
+
+val isSnapshot = rootProject.version.toString().contains("snapshot")
+val type = if (isSnapshot) "beta" else "release"
+val other = if (isSnapshot) "Beta" else "Release"
+
+val file = file("${rootProject.rootDir}/jars/${rootProject.name}-${rootProject.version}.jar")
+
+val description = """
+## Changes:
+* Added 1.20.2 support.
+
+## New Features:
+* N/A
+
+## Other:
+* [Feature Requests](https://github.com/Crazy-Crew/${rootProject.name}/issues)
+* [Bug Reports](https://github.com/Crazy-Crew/${rootProject.name}/issues)
+""".trimIndent()
+
+val versions = listOf(
+    "1.20",
+    "1.20.1",
+    "1.20.2"
+)
+
+modrinth {
+    autoAddDependsOn.set(false)
+
+    token.set(System.getenv("MODRINTH_TOKEN"))
+
+    projectId.set(rootProject.name.lowercase())
+
+    versionName.set("${rootProject.name} ${rootProject.version}")
+    versionNumber.set("${rootProject.version}")
+
+    versionType.set(type)
+
+    uploadFile.set(file)
+
+    gameVersions.addAll(versions)
+
+    changelog.set(description)
+
+    loaders.addAll("paper", "purpur")
+}
+
+hangarPublish {
+    publications.register("plugin") {
+        version.set(rootProject.version as String)
+
+        id.set(rootProject.name)
+
+        channel.set(if (isSnapshot) "Beta" else "Release")
+
+        changelog.set(description)
+
+        apiKey.set(System.getenv("hangar_key"))
+
+        platforms {
+            register(Platforms.PAPER) {
+                jar.set(file)
+                platformVersions.set(versions)
+            }
         }
     }
 }
